@@ -1,0 +1,435 @@
+/* ═══════════════════════════════════════════════════
+   Video Splitter – Dark Glassmorphism Theme
+   ═══════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --bg-primary: #0a0a1a;
+  --bg-card: rgba(255, 255, 255, 0.04);
+  --bg-card-hover: rgba(255, 255, 255, 0.07);
+  --border-card: rgba(255, 255, 255, 0.08);
+  --text-primary: #e8e8f0;
+  --text-secondary: #8888a8;
+  --text-muted: #55556e;
+  --accent: #6c5ce7;
+  --accent-light: #a29bfe;
+  --accent-glow: rgba(108, 92, 231, 0.35);
+  --success: #00e676;
+  --success-glow: rgba(0, 230, 118, 0.3);
+  --error: #ff5252;
+  --error-glow: rgba(255, 82, 82, 0.3);
+  --radius: 16px;
+  --radius-sm: 10px;
+}
+
+html,
+body {
+  height: 100%;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(108, 92, 231, 0.12) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 20%, rgba(162, 155, 254, 0.08) 0%, transparent 50%),
+    var(--bg-primary);
+}
+
+/* ── Titlebar drag region ── */
+.titlebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 38px;
+  -webkit-app-region: drag;
+  z-index: 100;
+}
+
+/* ── Main Container ── */
+.container {
+  width: 100%;
+  max-width: 520px;
+  padding: 24px;
+  margin-top: 20px;
+}
+
+/* ── Glass Card ── */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius);
+  padding: 32px 28px;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: box-shadow 0.3s ease;
+}
+
+/* ── Header ── */
+.header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+  background: linear-gradient(135deg, var(--text-primary), var(--accent-light));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.header p {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* ── Settings Row ── */
+.settings-row {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.setting-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.setting-field label {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.setting-field input[type="number"] {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.setting-field input[type="number"]::-webkit-inner-spin-button,
+.setting-field input[type="number"]::-webkit-outer-spin-button {
+  opacity: 1;
+}
+
+.setting-field input[type="number"]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+/* ── Drop Zone ── */
+.drop-zone {
+  border: 2px dashed rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-sm);
+  padding: 28px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.drop-zone::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, var(--accent-glow), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.drop-zone:hover,
+.drop-zone.drag-over {
+  border-color: var(--accent);
+  background: rgba(108, 92, 231, 0.05);
+}
+
+.drop-zone:hover::before,
+.drop-zone.drag-over::before {
+  opacity: 0.3;
+}
+
+.drop-zone.has-file {
+  border-color: var(--accent);
+  border-style: solid;
+  background: rgba(108, 92, 231, 0.06);
+}
+
+.drop-zone-icon {
+  font-size: 2rem;
+  margin-bottom: 8px;
+  display: block;
+  position: relative;
+  z-index: 1;
+}
+
+.drop-zone-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  position: relative;
+  z-index: 1;
+}
+
+.drop-zone-text .file-name {
+  color: var(--accent-light);
+  font-weight: 600;
+  display: block;
+  margin-top: 4px;
+  word-break: break-all;
+}
+
+/* ── Process Button ── */
+.btn-process {
+  width: 100%;
+  padding: 14px 24px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--accent), #8b7cf8);
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+  letter-spacing: 0.02em;
+}
+
+.btn-process::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.5s ease;
+}
+
+.btn-process:hover:not(:disabled)::before {
+  transform: translateX(100%);
+}
+
+.btn-process:hover:not(:disabled) {
+  box-shadow: 0 4px 20px var(--accent-glow);
+  transform: translateY(-1px);
+}
+
+.btn-process:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-process:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Progress Section ── */
+.progress-section {
+  margin-top: 20px;
+  display: none;
+}
+
+.progress-section.visible {
+  display: block;
+  animation: fadeIn 0.3s ease;
+}
+
+.progress-bar-track {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-light));
+  border-radius: 3px;
+  transition: width 0.3s ease;
+  position: relative;
+}
+
+.progress-bar-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.3) 50%,
+      transparent 100%);
+  animation: shimmer 1.5s infinite;
+}
+
+.progress-status {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+/* ── Result Section ── */
+.result-section {
+  margin-top: 18px;
+  display: none;
+}
+
+.result-section.visible {
+  display: block;
+  animation: fadeIn 0.4s ease;
+}
+
+.result-success {
+  background: rgba(0, 230, 118, 0.06);
+  border: 1px solid rgba(0, 230, 118, 0.15);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  text-align: center;
+}
+
+.result-success .result-icon {
+  font-size: 1.6rem;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.result-success .result-text {
+  font-size: 0.85rem;
+  color: var(--success);
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+
+.result-success .result-path {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  word-break: break-all;
+  margin-bottom: 12px;
+}
+
+.btn-open {
+  padding: 8px 20px;
+  border: 1px solid rgba(0, 230, 118, 0.25);
+  border-radius: 8px;
+  background: rgba(0, 230, 118, 0.08);
+  color: var(--success);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-open:hover {
+  background: rgba(0, 230, 118, 0.15);
+  box-shadow: 0 2px 12px var(--success-glow);
+}
+
+.result-error {
+  background: rgba(255, 82, 82, 0.06);
+  border: 1px solid rgba(255, 82, 82, 0.15);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  text-align: center;
+}
+
+.result-error .result-icon {
+  font-size: 1.6rem;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.result-error .result-text {
+  font-size: 0.85rem;
+  color: var(--error);
+  font-weight: 500;
+}
+
+.result-error .error-detail {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 6px;
+  word-break: break-all;
+}
+
+/* ── Animations ── */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(200%);
+  }
+}
+
+/* ── Spinner for indeterminate progress ── */
+.spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-top-color: var(--accent-light);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
