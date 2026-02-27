@@ -1,10 +1,12 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+'use strict';
+
+const { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, Notification, nativeImage } = require('electron');
 const path = require('path');
-const ffmpeg = require('fluent-ffmpeg');
+const fs = require('fs');
+const os = require('os');
+const ffmpegLib = require('fluent-ffmpeg');
 
 // ─── Resolve ffmpeg & ffprobe binary paths ──────────────────
-// In production (packaged), use extraResources.
-// In development, use the npm packages directly.
 function getFfmpegPath() {
   if (app.isPackaged) {
     const ext = process.platform === 'win32' ? '.exe' : '';
@@ -12,7 +14,6 @@ function getFfmpegPath() {
   }
   return require('ffmpeg-static');
 }
-
 function getFfprobePath() {
   if (app.isPackaged) {
     const ext = process.platform === 'win32' ? '.exe' : '';
@@ -21,19 +22,86 @@ function getFfprobePath() {
   return require('ffprobe-static').path;
 }
 
-ffmpeg.setFfmpegPath(getFfmpegPath());
-ffmpeg.setFfprobePath(getFfprobePath());
+ffmpegLib.setFfmpegPath(getFfmpegPath());
+ffmpegLib.setFfprobePath(getFfprobePath());
 
-let mainWindow;
+// ─── Settings + History helpers ──────────────────────────────
+const userDataDir = app.getPath('userData');
+const settingsFile = path.join(userDataDir, 'settings.json');
+const historyFile = path.join(userDataDir, 'history.json');
 
+function loadSettings() {
+  try {
+    if (fs.existsSync(settingsFile)) {
+      return JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
+    }
+  } catch (_) { }
+  return { keepSec: 3, skipSec: 3, outputDir: '' };
+}
+
+function saveSettings(data) {
+  try {
+    fs.mkdirSync(userDataDir, { recursive: true });
+    fs.writeFileSync(settingsFile, JSON.stringify(data, null, 2), 'utf8');
+  } catch (_) { }
+}
+
+function loadHistory() {
+  try {
+    if (fs.existsSync(historyFile)) {
+      return JSON.parse(fs.readFileSync(historyFile, 'utf8'));
+    }
+  } catch (_) { }
+  return [];
+}
+
+function appendHistory(entry) {
+  try {
+    const arr = loadHistory();
+    arr.unshift({ ...entry, date: new Date().toISOString() });
+    const limited = arr.slice(0, 100); // keep only last 100
+    fs.mkdirSync(userDataDir, { recursive: true });
+    fs.writeFileSync(historyFile, JSON.stringify(limited, null, 2), 'utf8');
+  } catch (_) { }
+}
+
+// ─── State ──────────────────────────────────────────────────
+let mainWindow = null;
+let tray = null;
+let isQuitting = false;
+
+// Active ffmpeg commands - for cancellation
+let activeCommands = [];
+let cancelRequested = false;
+
+// ─── Tray Icon (create a simple icon via nativeImage) ────────
+function createTrayIcon() {
+  // Create a simple 16×16 icon programmatically (purple scissors-like)
+  // Using a tiny PNG buffer encoded as base64
+  // This is a 16x16 purple square with scissors symbol - simplified
+  const iconPath = path.join(__dirname, 'resources', 'tray-icon.png');
+  if (fs.existsSync(iconPath)) {
+    return nativeImage.createFromPath(iconPath);
+  }
+  // Fallback: empty 16x16 image
+  return nativeImage.createEmpty();
+}
+
+// ─── Window ──────────────────────────────────────────────────
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 800,
-    height: 650,
-    minWidth: 600,
-    minHeight: 500,
-    backgroundColor: '#0f0f1a',
+    width: 1020,
+    height: 720,
+    minWidth: 820,
+    minHeight: 560,
+    backgroundColor: '#0a0a1a',
     titleBarStyle: 'hiddenInset',
+    frame: process.platform !== 'win32',
+    titleBarOverlay: process.platform === 'win32' ? {
+      color: '#0a0a1a',
+      symbolColor: '#e8e8f0',
+      height: 36,
+    } : false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -42,30 +110,87 @@ function createWindow() {
   });
 
   mainWindow.loadFile('index.html');
+
+  // Minimize to tray instead of close
+  mainWindow.on('close', (e) => {
+    if (!isQuitting && tray) {
+      e.preventDefault();
+      mainWindow.hide();
+    }
+  });
 }
 
-app.whenReady().then(createWindow);
+function setupTray() {
+  const icon = createTrayIcon();
+  tray = new Tray(icon);
+  tray.setToolTip('Video Splitter');
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Mở Video Splitter',
+      click: () => { mainWindow.show(); mainWindow.focus(); },
+    },
+    { type: 'separator' },
+    {
+      label: 'Thoát',
+      click: () => { isQuitting = true; app.quit(); },
+    },
+  ]);
+  tray.setContextMenu(contextMenu);
+
+  tray.on('double-click', () => {
+    mainWindow.show();
+    mainWindow.focus();
+  });
+}
+
+app.whenReady().then(() => {
+  createWindow();
+  setupTray();
+});
+
+app.on('before-quit', () => { isQuitting = true; });
 
 app.on('window-all-closed', () => {
-  app.quit();
+  if (process.platform !== 'darwin') app.quit();
 });
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  else mainWindow.show();
 });
 
-// ─── IPC Handlers ────────────────────────────────────────────
+// ─── IPC: window controls ─────────────────────────────────────
+ipcMain.on('win-minimize', () => mainWindow?.minimize());
+ipcMain.on('win-maximize', () => {
+  if (mainWindow?.isMaximized()) mainWindow.unmaximize();
+  else mainWindow?.maximize();
+});
+ipcMain.on('win-close', () => {
+  // treat as hide-to-tray if tray exists
+  if (tray) mainWindow?.hide();
+  else { isQuitting = true; app.quit(); }
+});
 
+// ─── IPC: dialogs ────────────────────────────────────────────
 ipcMain.handle('select-video', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Chọn file video',
     filters: [
-      { name: 'Video', extensions: ['mp4', 'mov', 'avi', 'mkv', 'webm', 'flv', 'wmv'] },
+      { name: 'Video', extensions: ['mp4', 'mov', 'avi', 'mkv', 'webm', 'flv', 'wmv', 'm4v'] },
       { name: 'All Files', extensions: ['*'] },
     ],
-    properties: ['openFile'],
+    properties: ['openFile', 'multiSelections'],
   });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths;
+});
 
+ipcMain.handle('select-output-dir', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Chọn thư mục lưu file output',
+    properties: ['openDirectory', 'createDirectory'],
+  });
   if (result.canceled || result.filePaths.length === 0) return null;
   return result.filePaths[0];
 });
@@ -74,144 +199,246 @@ ipcMain.handle('open-file', async (_event, filePath) => {
   shell.showItemInFolder(filePath);
 });
 
-// Get video duration using ffprobe
-function getVideoDuration(filePath) {
+// ─── IPC: video info ─────────────────────────────────────────
+ipcMain.handle('get-video-info', async (_event, filePath) => {
+  return new Promise((resolve) => {
+    ffmpegLib.ffprobe(filePath, (err, meta) => {
+      if (err) return resolve(null);
+      const fmt = meta.format || {};
+      const vStream = (meta.streams || []).find(s => s.codec_type === 'video') || {};
+      const aStream = (meta.streams || []).find(s => s.codec_type === 'audio');
+
+      let fps = null;
+      if (vStream.r_frame_rate) {
+        const parts = vStream.r_frame_rate.split('/');
+        fps = parts.length === 2 ? (parseFloat(parts[0]) / parseFloat(parts[1])) : null;
+      }
+
+      resolve({
+        duration: fmt.duration || 0,
+        size: fmt.size || 0,
+        hasAudio: !!aStream,
+        width: vStream.width || 0,
+        height: vStream.height || 0,
+        fps: fps ? Math.round(fps * 10) / 10 : null,
+        codec: vStream.codec_name || '',
+      });
+    });
+  });
+});
+
+// ─── IPC: settings ───────────────────────────────────────────
+ipcMain.handle('get-settings', () => loadSettings());
+ipcMain.handle('save-settings', (_event, data) => { saveSettings(data); return true; });
+
+// ─── IPC: history ────────────────────────────────────────────
+ipcMain.handle('get-history', () => loadHistory());
+ipcMain.handle('clear-history', () => {
+  try { fs.writeFileSync(historyFile, '[]', 'utf8'); } catch (_) { }
+  return true;
+});
+
+// ─── IPC: cancel ─────────────────────────────────────────────
+ipcMain.handle('cancel-processing', () => {
+  cancelRequested = true;
+  for (const cmd of activeCommands) {
+    try { cmd.kill('SIGKILL'); } catch (_) { }
+  }
+  activeCommands = [];
+  return true;
+});
+
+// ─── Helpers ─────────────────────────────────────────────────
+function cleanupFiles(files) {
+  for (const f of files) {
+    try { fs.unlinkSync(f); } catch (_) { }
+  }
+}
+
+function getVideoInfo(filePath) {
   return new Promise((resolve, reject) => {
-    ffmpeg.ffprobe(filePath, (err, metadata) => {
+    ffmpegLib.ffprobe(filePath, (err, meta) => {
       if (err) return reject(err);
-      resolve(metadata.format.duration);
+      const vStream = (meta.streams || []).find(s => s.codec_type === 'video') || {};
+      const aStream = (meta.streams || []).find(s => s.codec_type === 'audio');
+      // Prefer video stream bitrate, fall back to overall format bitrate
+      const videoBitrate = parseInt(vStream.bit_rate || meta.format.bit_rate || 0, 10);
+      resolve({
+        duration: parseFloat(meta.format.duration || 0),
+        hasAudio: !!aStream,
+        videoBitrate,
+      });
     });
   });
 }
 
-ipcMain.handle('process-video', async (event, inputPath, keepSec, skipSec) => {
+/**
+ * Cut a single segment using input-side seeking (fast, low RAM).
+ * Returns a promise that resolves when done, rejects on error.
+ * The returned ffmpeg command is also registered in activeCommands for cancellation.
+ */
+function cutSegment(inputPath, destPath, start, end, hasAudio) {
+  return new Promise((resolve, reject) => {
+    const dur = end - start;
+    const opts = ['-c copy', '-avoid_negative_ts make_zero'];
+    if (!hasAudio) opts.push('-an');
+
+    const cmd = ffmpegLib(inputPath)
+      .inputOptions([`-ss ${start}`, `-t ${dur}`])
+      .outputOptions(opts)
+      .output(destPath)
+      .on('end', () => {
+        activeCommands = activeCommands.filter(c => c !== cmd);
+        resolve();
+      })
+      .on('error', (err) => {
+        activeCommands = activeCommands.filter(c => c !== cmd);
+        reject(err);
+      });
+
+    activeCommands.push(cmd);
+    cmd.run();
+  });
+}
+
+function concatSegments(concatListPath, outputPath) {
+  return new Promise((resolve, reject) => {
+    const cmd = ffmpegLib(concatListPath)
+      .inputOptions(['-f concat', '-safe 0'])
+      .outputOptions(['-c copy'])
+      .output(outputPath)
+      .on('end', () => {
+        activeCommands = activeCommands.filter(c => c !== cmd);
+        resolve();
+      })
+      .on('error', (err) => {
+        activeCommands = activeCommands.filter(c => c !== cmd);
+        reject(err);
+      });
+
+    activeCommands.push(cmd);
+    cmd.run();
+  });
+}
+
+// ─── IPC: process-video ──────────────────────────────────────
+//
+// Uses ffmpeg select/aselect filters for frame-accurate keep/skip.
+// Single-pass, no temp segment files needed.
+//
+ipcMain.handle('process-video', async (event, inputPath, keepSec, skipSec, outputDir, outputName) => {
+  cancelRequested = false;
+
   try {
-    const KEEP = keepSec || 3;
-    const SKIP = skipSec || 3;
-    const duration = await getVideoDuration(inputPath);
-    if (!duration || duration <= 0) {
-      throw new Error('Không thể đọc thời lượng video.');
-    }
+    const KEEP = Math.max(0.1, keepSec || 3);
+    const SKIP = Math.max(0, skipSec || 3);
 
-    const segments = [];
-    let t = 0;
-    while (t < duration) {
-      const start = t;
-      const end = Math.min(t + KEEP, duration);
-      if (end > start) {
-        segments.push({ start, end });
-      }
-      t += KEEP + SKIP;
-    }
+    // Probe: get duration, audio, and bitrate in one call
+    const { duration, hasAudio, videoBitrate } = await getVideoInfo(inputPath);
 
-    if (segments.length === 0) {
-      throw new Error('Video quá ngắn, không có đoạn nào để giữ.');
-    }
+    if (!duration || duration <= 0) throw new Error('Không thể đọc thời lượng video.');
 
-    // Build output path
+    const expectedDur = Math.round((KEEP / (KEEP + SKIP)) * duration);
+
+    // Determine output path
     const ext = path.extname(inputPath);
-    const basename = path.basename(inputPath, ext);
-    const dir = path.dirname(inputPath);
-    const outputPath = path.join(dir, `${basename}_split${ext}`);
+    const base = outputName
+      ? (outputName.endsWith(ext) ? outputName : outputName + ext)
+      : path.basename(inputPath, ext) + '_split' + ext;
+    const dir = (outputDir && fs.existsSync(outputDir)) ? outputDir : path.dirname(inputPath);
+    const output = path.join(dir, base);
 
-    // Build FFmpeg filter_complex for single-pass processing
-    // For each segment: trim video + audio, then concat all
-    const filterParts = [];
-    const concatInputs = [];
+    const sendProgress = (percent, status, eta) => {
+      if (!event.sender.isDestroyed()) {
+        event.sender.send('progress', { percent, status, eta: eta || null });
+      }
+    };
 
-    segments.forEach((seg, i) => {
-      const vLabel = `v${i}`;
-      const aLabel = `a${i}`;
-      filterParts.push(
-        `[0:v]trim=start=${seg.start}:end=${seg.end},setpts=PTS-STARTPTS[${vLabel}]`
-      );
-      filterParts.push(
-        `[0:a]atrim=start=${seg.start}:end=${seg.end},asetpts=PTS-STARTPTS[${aLabel}]`
-      );
-      concatInputs.push(`[${vLabel}][${aLabel}]`);
-    });
+    sendProgress(0, `Bắt đầu: giữ ${KEEP}s / bỏ ${SKIP}s → output ~${expectedDur}s…`);
 
-    const concatFilter = `${concatInputs.join('')}concat=n=${segments.length}:v=1:a=1[outv][outa]`;
-    filterParts.push(concatFilter);
+    const cycle = KEEP + SKIP;
+    // select filter: keep frames where time-within-cycle < KEEP
+    // aselect: same for audio
+    const vf = `select=lt(mod(t\\,${cycle})\\,${KEEP}),setpts=N/FRAME_RATE/TB`;
+    const af = `aselect=lt(mod(t\\,${cycle})\\,${KEEP}),asetpts=N/SR/TB`;
 
-    const filterComplex = filterParts.join(';');
+    await new Promise((resolve, reject) => {
+      // Match input bitrate so output file is proportionally smaller
+      const bitrateOpts = videoBitrate > 0
+        ? [`-b:v ${videoBitrate}`]
+        : ['-crf 23'];  // fallback if bitrate unknown
 
-    // Send progress info
-    event.sender.send('progress', {
-      percent: 0,
-      status: `Đang xử lý: ${segments.length} đoạn (${duration.toFixed(1)}s → ~${(segments.length * KEEP).toFixed(1)}s)`,
-    });
+      let outOpts = [
+        `-vf ${vf}`,
+        '-vsync vfr',
+        ...bitrateOpts,
+      ];
+      if (hasAudio) {
+        outOpts.push(`-af ${af}`);
+      } else {
+        outOpts.push('-an');
+      }
 
-    return new Promise((resolve, reject) => {
-      const command = ffmpeg(inputPath)
-        .complexFilter(filterComplex)
-        .outputOptions(['-map', '[outv]', '-map', '[outa]'])
-        .output(outputPath)
+      const cmd = ffmpegLib(inputPath)
+        .outputOptions(outOpts)
+        .output(output)
         .on('progress', (progress) => {
-          // progress.percent may not always be available
-          const pct = progress.percent ? Math.min(Math.round(progress.percent), 100) : -1;
-          event.sender.send('progress', {
-            percent: pct,
-            status: `Đang xử lý...${pct >= 0 ? ` ${pct}%` : ''}`,
-          });
+          if (cancelRequested) {
+            try { cmd.kill('SIGKILL'); } catch (_) { }
+            return;
+          }
+          if (progress.timemark) {
+            const parts = progress.timemark.split(':');
+            const currentSec = (+parts[0]) * 3600 + (+parts[1]) * 60 + parseFloat(parts[2]);
+            const pct = Math.min(99, Math.round((currentSec / Math.max(expectedDur, 1)) * 100));
+            sendProgress(pct, `Đang xử lý… ${progress.timemark}`);
+          }
         })
         .on('end', () => {
-          event.sender.send('progress', { percent: 100, status: 'Hoàn thành!' });
-          resolve({ success: true, outputPath });
+          activeCommands = activeCommands.filter(c => c !== cmd);
+          resolve();
         })
         .on('error', (err) => {
-          // If audio stream doesn't exist, retry without audio
-          if (err.message.includes('Stream map') || err.message.includes('does not contain')) {
-            processVideoOnly(event, inputPath, segments, outputPath)
-              .then(resolve)
-              .catch(reject);
-          } else {
-            reject(err);
-          }
+          activeCommands = activeCommands.filter(c => c !== cmd);
+          reject(err);
         });
 
-      command.run();
+      activeCommands.push(cmd);
+      cmd.run();
     });
+
+    if (cancelRequested) throw new Error('__CANCELLED__');
+
+    sendProgress(100, 'Hoàn thành!');
+
+    // History
+    const outputStat = fs.existsSync(output) ? fs.statSync(output) : null;
+    appendHistory({
+      inputPath,
+      outputPath: output,
+      keepSec: KEEP,
+      skipSec: SKIP,
+      outputSize: outputStat ? outputStat.size : 0,
+    });
+
+    // Native notification
+    try {
+      if (Notification.isSupported()) {
+        new Notification({
+          title: 'Video Splitter',
+          body: `Hoàn thành! ${path.basename(output)}`,
+        }).show();
+      }
+    } catch (_) { }
+
+    return { success: true, outputPath: output };
+
   } catch (err) {
+    if (err.message === '__CANCELLED__') {
+      return { success: false, cancelled: true, error: 'Đã huỷ xử lý.' };
+    }
     return { success: false, error: err.message };
   }
 });
 
-// Fallback: process video without audio (for videos with no audio stream)
-function processVideoOnly(event, inputPath, segments, outputPath) {
-  const filterParts = [];
-  const concatInputs = [];
 
-  segments.forEach((seg, i) => {
-    const vLabel = `v${i}`;
-    filterParts.push(
-      `[0:v]trim=start=${seg.start}:end=${seg.end},setpts=PTS-STARTPTS[${vLabel}]`
-    );
-    concatInputs.push(`[${vLabel}]`);
-  });
-
-  const concatFilter = `${concatInputs.join('')}concat=n=${segments.length}:v=1:a=0[outv]`;
-  filterParts.push(concatFilter);
-
-  const filterComplex = filterParts.join(';');
-
-  return new Promise((resolve, reject) => {
-    ffmpeg(inputPath)
-      .complexFilter(filterComplex)
-      .outputOptions(['-map', '[outv]'])
-      .output(outputPath)
-      .on('progress', (progress) => {
-        const pct = progress.percent ? Math.min(Math.round(progress.percent), 100) : -1;
-        event.sender.send('progress', {
-          percent: pct,
-          status: `Đang xử lý (không audio)...${pct >= 0 ? ` ${pct}%` : ''}`,
-        });
-      })
-      .on('end', () => {
-        event.sender.send('progress', { percent: 100, status: 'Hoàn thành!' });
-        resolve({ success: true, outputPath });
-      })
-      .on('error', (err) => reject(err))
-      .run();
-  });
-}

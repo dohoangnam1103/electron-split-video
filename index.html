@@ -4,58 +4,203 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Video Splitter</title>
+  <meta name="description" content="Cắt và ghép video theo pattern lấy/bỏ tuỳ chỉnh" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="titlebar"></div>
-
-  <div class="container">
-    <div class="card">
-      <!-- Header -->
-      <div class="header">
-        <h1>✂️ Video Splitter</h1>
-        <p>Lấy 3s → Bỏ 3s → Lặp lại → Ghép thành video mới</p>
-      </div>
-
-      <!-- Settings -->
-      <div class="settings-row">
-        <div class="setting-field">
-          <label for="keepDuration">⏱ Lấy (giây)</label>
-          <input type="number" id="keepDuration" value="3" min="0.5" step="0.5" />
-        </div>
-        <div class="setting-field">
-          <label for="skipDuration">⏭ Bỏ (giây)</label>
-          <input type="number" id="skipDuration" value="3" min="0.5" step="0.5" />
-        </div>
-      </div>
-
-      <!-- Drop Zone -->
-      <div class="drop-zone" id="dropZone">
-        <span class="drop-zone-icon">📁</span>
-        <div class="drop-zone-text">
-          <span id="dropText">Click hoặc kéo thả video vào đây</span>
-          <span class="file-name" id="fileName"></span>
-        </div>
-      </div>
-
-      <!-- Process Button -->
-      <button class="btn-process" id="btnProcess" disabled>
-        Cắt &amp; Ghép Video
-      </button>
-
-      <!-- Progress -->
-      <div class="progress-section" id="progressSection">
-        <div class="progress-bar-track">
-          <div class="progress-bar-fill" id="progressBar"></div>
-        </div>
-        <div class="progress-status" id="progressStatus">
-          <span class="spinner"></span> Đang chuẩn bị...
-        </div>
-      </div>
-
-      <!-- Result -->
-      <div class="result-section" id="resultSection"></div>
+  <!-- Custom titlebar for Windows (frameless) -->
+  <div class="titlebar" id="titlebar">
+    <span class="titlebar-title">✂️ Video Splitter</span>
+    <div class="titlebar-controls">
+      <button id="btnMinimize" class="titlebar-btn" title="Thu nhỏ">─</button>
+      <button id="btnMaximize" class="titlebar-btn" title="Phóng to">□</button>
+      <button id="btnClose" class="titlebar-btn close" title="Đóng">✕</button>
     </div>
+  </div>
+
+  <div class="app-layout">
+
+    <!-- ═══ SIDEBAR ═══════════════════════════════════════ -->
+    <aside class="sidebar">
+      <!-- Logo -->
+      <div class="sidebar-logo">
+        <span class="logo-icon">✂️</span>
+        <span class="logo-text">Video<br><strong>Splitter</strong></span>
+      </div>
+
+      <!-- Nav tabs -->
+      <nav class="sidebar-nav">
+        <button class="nav-btn active" data-tab="main" id="navMain">
+          <span class="nav-icon">🎬</span>
+          <span class="nav-label">Xử lý</span>
+        </button>
+        <button class="nav-btn" data-tab="history" id="navHistory">
+          <span class="nav-icon">📜</span>
+          <span class="nav-label">Lịch sử</span>
+        </button>
+        <button class="nav-btn" data-tab="settings" id="navSettings">
+          <span class="nav-icon">⚙️</span>
+          <span class="nav-label">Cài đặt</span>
+        </button>
+      </nav>
+
+      <!-- Sidebar footer -->
+      <div class="sidebar-footer">
+        <span class="version-badge">v2.0.0</span>
+      </div>
+    </aside>
+
+    <!-- ═══ MAIN CONTENT ══════════════════════════════════ -->
+    <main class="content">
+
+      <!-- ── TAB: MAIN ─────────────────────────────────── -->
+      <section class="tab-panel active" id="tabMain">
+
+        <!-- Top controls row -->
+        <div class="top-controls">
+          <div class="params-group">
+            <div class="param-field">
+              <label for="keepDuration">⏱ Lấy (giây)</label>
+              <input type="number" id="keepDuration" value="3" min="0.1" step="0.5" />
+            </div>
+            <div class="param-field">
+              <label for="skipDuration">⏭ Bỏ (giây)</label>
+              <input type="number" id="skipDuration" value="3" min="0" step="0.5" />
+            </div>
+            <div class="param-field flex-grow">
+              <label for="outputName">📝 Tên file output</label>
+              <input type="text" id="outputName" placeholder="Tự động (tên_gốc_split)" />
+            </div>
+          </div>
+
+          <div class="output-dir-row">
+            <span class="output-dir-label">📁 Lưu vào:</span>
+            <span class="output-dir-path" id="outputDirDisplay">Cùng thư mục với video gốc</span>
+            <button class="btn-dir" id="btnSelectOutputDir">Chọn...</button>
+          </div>
+        </div>
+
+        <!-- Drop Zone -->
+        <div class="drop-zone" id="dropZone">
+          <div class="drop-zone-inner">
+            <span class="drop-zone-icon">📁</span>
+            <div class="drop-zone-text">
+              <span id="dropText">Click hoặc kéo thả video vào đây</span>
+              <span class="drop-hint">Hỗ trợ mp4, mov, avi, mkv, webm, flv, wmv – nhiều file cùng lúc</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Queue List -->
+        <div class="queue-section" id="queueSection">
+          <div class="queue-header">
+            <span class="queue-title">🎞 Danh sách file (<span id="queueCount">0</span>)</span>
+            <button class="btn-ghost" id="btnClearQueue">Xoá tất cả</button>
+          </div>
+          <div class="queue-list" id="queueList"></div>
+        </div>
+
+        <!-- Timeline Preview -->
+        <div class="timeline-section" id="timelineSection">
+          <div class="section-label">📊 Preview timeline cắt</div>
+          <canvas id="timelineCanvas" height="36"></canvas>
+          <div class="timeline-legend">
+            <span class="legend-keep">■ Giữ lại</span>
+            <span class="legend-skip">■ Bỏ qua</span>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="action-row">
+          <button class="btn-process" id="btnProcess" disabled>
+            <span class="btn-icon">⚡</span> Cắt &amp; Ghép Video
+          </button>
+          <button class="btn-cancel" id="btnCancel" style="display:none">
+            <span class="btn-icon">⏹</span> Huỷ
+          </button>
+        </div>
+
+        <!-- Progress -->
+        <div class="progress-section" id="progressSection">
+          <div class="progress-info">
+            <span class="progress-label" id="progressLabel">Đang xử lý file 1 / 1</span>
+            <span class="progress-eta" id="progressEta"></span>
+          </div>
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill" id="progressBar"></div>
+          </div>
+          <div class="progress-status" id="progressStatus">
+            <span class="spinner"></span> Đang chuẩn bị...
+          </div>
+        </div>
+
+        <!-- Result -->
+        <div class="result-section" id="resultSection"></div>
+
+      </section>
+
+      <!-- ── TAB: HISTORY ────────────────────────────────── -->
+      <section class="tab-panel" id="tabHistory">
+        <div class="panel-header">
+          <h2>📜 Lịch sử xử lý</h2>
+          <button class="btn-ghost danger" id="btnClearHistory">Xoá lịch sử</button>
+        </div>
+        <div class="history-list" id="historyList">
+          <div class="empty-state">Chưa có file nào được xử lý</div>
+        </div>
+      </section>
+
+      <!-- ── TAB: SETTINGS ──────────────────────────────── -->
+      <section class="tab-panel" id="tabSettings">
+        <div class="panel-header">
+          <h2>⚙️ Cài đặt</h2>
+          <button class="btn-primary" id="btnSaveSettings">Lưu cài đặt</button>
+        </div>
+
+        <div class="settings-form">
+          <div class="settings-group">
+            <h3>Thông số mặc định</h3>
+            <div class="setting-row">
+              <label for="settingKeep">Lấy (giây)</label>
+              <input type="number" id="settingKeep" min="0.1" step="0.5" value="3" />
+              <span class="setting-hint">Thời gian giữ lại mỗi đoạn</span>
+            </div>
+            <div class="setting-row">
+              <label for="settingSkip">Bỏ (giây)</label>
+              <input type="number" id="settingSkip" min="0" step="0.5" value="3" />
+              <span class="setting-hint">Thời gian bỏ qua sau mỗi đoạn giữ</span>
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <h3>Thư mục output mặc định</h3>
+            <div class="setting-row">
+              <span class="setting-value" id="settingOutputDirDisplay">Cùng thư mục với video gốc</span>
+              <button class="btn-dir" id="btnSettingOutputDir">Chọn...</button>
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <h3>Thông tin</h3>
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">Phiên bản</span>
+                <span class="info-value">2.0.0</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Engine</span>
+                <span class="info-value">FFmpeg + Electron</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Chiến lược</span>
+                <span class="info-value">Segment + Concat (low RAM)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
   </div>
 
   <script src="renderer.js"></script>

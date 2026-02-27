@@ -1,14 +1,15 @@
 {
   "name": "video-splitter",
-  "version": "1.0.0",
-  "description": "Split video by alternating keep/skip pattern and merge results",
+  "version": "2.0.0",
+  "description": "Split video by alternating keep/skip pattern – full-featured with queue, cancel, history, tray",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
+    "start": "node scripts/create-tray-icon.js && electron .",
+    "create-icon": "node scripts/create-tray-icon.js",
     "download-ffmpeg": "node scripts/download-ffmpeg.js",
-    "build:mac": "electron-builder --mac --arm64",
-    "build:win": "npm run download-ffmpeg && electron-builder --win --x64",
-    "build:all": "npm run download-ffmpeg && electron-builder --mac --arm64 --win --x64"
+    "build:mac": "npm run create-icon && electron-builder --mac --arm64",
+    "build:win": "npm run create-icon && npm run download-ffmpeg && electron-builder --win --x64",
+    "build:all": "npm run create-icon && npm run download-ffmpeg && electron-builder --mac --arm64 --win --x64"
   },
   "build": {
     "appId": "com.videosplitter.app",
