@@ -1,11 +1,28 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const ffmpeg = require('fluent-ffmpeg');
-const ffmpegStatic = require('ffmpeg-static');
 
-// Set ffmpeg path from bundled binary
-const ffmpegPath = ffmpegStatic.replace('app.asar', 'app.asar.unpacked');
-ffmpeg.setFfmpegPath(ffmpegPath);
+// ─── Resolve ffmpeg & ffprobe binary paths ──────────────────
+// In production (packaged), use extraResources.
+// In development, use the npm packages directly.
+function getFfmpegPath() {
+  if (app.isPackaged) {
+    const ext = process.platform === 'win32' ? '.exe' : '';
+    return path.join(process.resourcesPath, 'bin', 'ffmpeg' + ext);
+  }
+  return require('ffmpeg-static');
+}
+
+function getFfprobePath() {
+  if (app.isPackaged) {
+    const ext = process.platform === 'win32' ? '.exe' : '';
+    return path.join(process.resourcesPath, 'bin', 'ffprobe' + ext);
+  }
+  return require('ffprobe-static').path;
+}
+
+ffmpeg.setFfmpegPath(getFfmpegPath());
+ffmpeg.setFfprobePath(getFfprobePath());
 
 let mainWindow;
 

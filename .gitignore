@@ -1,7 +1,11 @@
 node_modules/
+resources/
 dist/
 *.dmg
 *.exe
 *.blockmap
 *.7z
 .DS_Store
+dist/
+dist/*
+resources/*
