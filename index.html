@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,6 +8,7 @@
   <meta name="description" content="Cắt và ghép video theo pattern lấy/bỏ tuỳ chỉnh" />
   <link rel="stylesheet" href="styles.css" />
 </head>
+
 <body>
   <!-- Custom titlebar for Windows (frameless) -->
   <div class="titlebar" id="titlebar">
@@ -46,7 +48,7 @@
 
       <!-- Sidebar footer -->
       <div class="sidebar-footer">
-        <span class="version-badge">v2.0.0</span>
+        <span class="version-badge">v2.0.1</span>
       </div>
     </aside>
 
@@ -66,6 +68,14 @@
             <div class="param-field">
               <label for="skipDuration">⏭ Bỏ (giây)</label>
               <input type="number" id="skipDuration" value="3" min="0" step="0.5" />
+            </div>
+            <div class="param-field">
+              <label for="trimStart">✂ Cắt đầu (s)</label>
+              <input type="number" id="trimStart" value="0" min="0" step="1" />
+            </div>
+            <div class="param-field">
+              <label for="speedFactor">⏩ Tốc độ (x)</label>
+              <input type="number" id="speedFactor" value="1" min="0.5" max="4" step="0.1" />
             </div>
             <div class="param-field flex-grow">
               <label for="outputName">📝 Tên file output</label>
@@ -170,6 +180,16 @@
               <input type="number" id="settingSkip" min="0" step="0.5" value="3" />
               <span class="setting-hint">Thời gian bỏ qua sau mỗi đoạn giữ</span>
             </div>
+            <div class="setting-row">
+              <label for="settingTrimStart">Cắt đầu (giây)</label>
+              <input type="number" id="settingTrimStart" min="0" step="1" value="0" />
+              <span class="setting-hint">Thời gian cắt bỏ ở đầu video</span>
+            </div>
+            <div class="setting-row">
+              <label for="settingSpeedFactor">Tốc độ (x)</label>
+              <input type="number" id="settingSpeedFactor" min="0.5" max="4" step="0.1" value="1" />
+              <span class="setting-hint">Tốc độ video đầu ra</span>
+            </div>
           </div>
 
           <div class="settings-group">
@@ -185,7 +205,7 @@
             <div class="info-grid">
               <div class="info-item">
                 <span class="info-label">Phiên bản</span>
-                <span class="info-value">2.0.0</span>
+                <span class="info-value">2.0.1</span>
               </div>
               <div class="info-item">
                 <span class="info-label">Engine</span>
@@ -205,4 +225,5 @@
 
   <script src="renderer.js"></script>
 </body>
+
 </html>

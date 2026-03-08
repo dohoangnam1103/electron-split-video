@@ -36,7 +36,7 @@ function loadSettings() {
       return JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
     }
   } catch (_) { }
-  return { keepSec: 3, skipSec: 3, outputDir: '' };
+  return { keepSec: 3, skipSec: 3, trimStartSec: 0, speedFactor: 1, outputDir: '' };
 }
 
 function saveSettings(data) {
@@ -326,19 +326,23 @@ function concatSegments(concatListPath, outputPath) {
 // Uses ffmpeg select/aselect filters for frame-accurate keep/skip.
 // Single-pass, no temp segment files needed.
 //
-ipcMain.handle('process-video', async (event, inputPath, keepSec, skipSec, outputDir, outputName) => {
+ipcMain.handle('process-video', async (event, inputPath, keepSec, skipSec, trimStartSec, speedFactor, outputDir, outputName) => {
   cancelRequested = false;
 
   try {
     const KEEP = Math.max(0.1, keepSec || 3);
     const SKIP = Math.max(0, skipSec || 3);
+    const TRIM = Math.max(0, trimStartSec || 0);
+    const SPEED = Math.max(0.1, speedFactor || 1);
 
     // Probe: get duration, audio, and bitrate in one call
     const { duration, hasAudio, videoBitrate } = await getVideoInfo(inputPath);
 
     if (!duration || duration <= 0) throw new Error('Không thể đọc thời lượng video.');
+    if (duration <= TRIM && TRIM > 0) throw new Error('Thời gian cắt bỏ ở đầu lớn hơn hoặc bằng thời lượng video.');
 
-    const expectedDur = Math.round((KEEP / (KEEP + SKIP)) * duration);
+    const effectiveDuration = duration - TRIM;
+    const expectedDur = Math.round(((KEEP / (KEEP + SKIP)) * effectiveDuration) / SPEED);
 
     // Determine output path
     const ext = path.extname(inputPath);
@@ -359,8 +363,8 @@ ipcMain.handle('process-video', async (event, inputPath, keepSec, skipSec, outpu
     const cycle = KEEP + SKIP;
     // select filter: keep frames where time-within-cycle < KEEP
     // aselect: same for audio
-    const vf = `select=lt(mod(t\\,${cycle})\\,${KEEP}),setpts=N/FRAME_RATE/TB`;
-    const af = `aselect=lt(mod(t\\,${cycle})\\,${KEEP}),asetpts=N/SR/TB`;
+    const vf = `select=lt(mod(t\\,${cycle})\\,${KEEP}),setpts=(N/FRAME_RATE/TB)/${SPEED}`;
+    const af = `aselect=lt(mod(t\\,${cycle})\\,${KEEP}),asetpts=N/SR/TB,atempo=${SPEED}`;
 
     await new Promise((resolve, reject) => {
       // Match input bitrate so output file is proportionally smaller
@@ -379,8 +383,12 @@ ipcMain.handle('process-video', async (event, inputPath, keepSec, skipSec, outpu
         outOpts.push('-an');
       }
 
-      const cmd = ffmpegLib(inputPath)
-        .outputOptions(outOpts)
+      const cmd = ffmpegLib(inputPath);
+      if (TRIM > 0) {
+        cmd.inputOptions([`-ss ${TRIM}`]);
+      }
+
+      cmd.outputOptions(outOpts)
         .output(output)
         .on('progress', (progress) => {
           if (cancelRequested) {
@@ -418,6 +426,8 @@ ipcMain.handle('process-video', async (event, inputPath, keepSec, skipSec, outpu
       outputPath: output,
       keepSec: KEEP,
       skipSec: SKIP,
+      trimStartSec: TRIM,
+      speedFactor: SPEED,
       outputSize: outputStat ? outputStat.size : 0,
     });
 

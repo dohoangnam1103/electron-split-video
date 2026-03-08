@@ -12,8 +12,8 @@ contextBridge.exposeInMainWorld('api', {
   getVideoInfo: (p) => ipcRenderer.invoke('get-video-info', p),
 
   // ── Process & Cancel ──────────────────────────────────
-  processVideo: (inputPath, keepSec, skipSec, outputDir, outputName) =>
-    ipcRenderer.invoke('process-video', inputPath, keepSec, skipSec, outputDir, outputName),
+  processVideo: (inputPath, keepSec, skipSec, trimStartSec, speedFactor, outputDir, outputName) =>
+    ipcRenderer.invoke('process-video', inputPath, keepSec, skipSec, trimStartSec, speedFactor, outputDir, outputName),
   cancelProcessing: () => ipcRenderer.invoke('cancel-processing'),
 
   // ── Progress events ───────────────────────────────────

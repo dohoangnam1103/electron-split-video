@@ -27,6 +27,8 @@ const outputDirDisplay = $('outputDirDisplay');
 const outputNameInput = $('outputName');
 const keepInput = $('keepDuration');
 const skipInput = $('skipDuration');
+const trimStartInput = $('trimStart');
+const speedFactorInput = $('speedFactor');
 const queueSection = $('queueSection');
 const queueList = $('queueList');
 const queueCount = $('queueCount');
@@ -42,6 +44,8 @@ const resultSection = $('resultSection');
 // Settings panel
 const settingKeep = $('settingKeep');
 const settingSkip = $('settingSkip');
+const settingTrimStart = $('settingTrimStart');
+const settingSpeedFactor = $('settingSpeedFactor');
 const settingOutputDir = $('settingOutputDirDisplay');
 const btnSettingOutputDir = $('btnSettingOutputDir');
 const btnSaveSettings = $('btnSaveSettings');
@@ -80,8 +84,12 @@ btnClose?.addEventListener('click', () => window.api.close?.());
   if (s) {
     keepInput.value = s.keepSec || 3;
     skipInput.value = s.skipSec || 3;
+    trimStartInput.value = s.trimStartSec || 0;
+    speedFactorInput.value = s.speedFactor || 1;
     settingKeep.value = s.keepSec || 3;
     settingSkip.value = s.skipSec || 3;
+    settingTrimStart.value = s.trimStartSec || 0;
+    settingSpeedFactor.value = s.speedFactor || 1;
     if (s.outputDir) {
       state.outputDir = s.outputDir;
       outputDirDisplay.textContent = s.outputDir;
@@ -107,12 +115,16 @@ btnSaveSettings.addEventListener('click', async () => {
   const data = {
     keepSec: parseFloat(settingKeep.value) || 3,
     skipSec: parseFloat(settingSkip.value) || 3,
+    trimStartSec: parseFloat(settingTrimStart.value) || 0,
+    speedFactor: parseFloat(settingSpeedFactor.value) || 1,
     outputDir: state.outputDir,
   };
   await window.api.saveSettings(data);
   // Sync main tab inputs
   keepInput.value = data.keepSec;
   skipInput.value = data.skipSec;
+  trimStartInput.value = data.trimStartSec;
+  speedFactorInput.value = data.speedFactor;
 
   btnSaveSettings.textContent = '✅ Đã lưu!';
   setTimeout(() => { btnSaveSettings.textContent = 'Lưu cài đặt'; }, 1800);
@@ -308,6 +320,8 @@ async function startProcessing() {
 
   const keepSec = parseFloat(keepInput.value) || 3;
   const skipSec = parseFloat(skipInput.value) || 3;
+  const trimStartSec = parseFloat(trimStartInput.value) || 0;
+  const speedFactor = parseFloat(speedFactorInput.value) || 1;
   const outputName = outputNameInput.value.trim();
   const outputDir = state.outputDir;
 
@@ -339,7 +353,7 @@ async function startProcessing() {
 
     // Build output name per file: custom name only valid when 1 file; otherwise auto
     const singleName = total === 1 ? outputName : '';
-    const result = await window.api.processVideo(item.path, keepSec, skipSec, outputDir, singleName);
+    const result = await window.api.processVideo(item.path, keepSec, skipSec, trimStartSec, speedFactor, outputDir, singleName);
 
     results.push({ item, result });
 
@@ -390,8 +404,10 @@ function showResults(results) {
       const inf = successes[0].item.info;
       const keepSec = parseFloat(keepInput.value) || 3;
       const skipSec = parseFloat(skipInput.value) || 3;
-      const dur = inf?.duration || 0;
-      const segs = dur > 0 ? Math.floor(dur / (keepSec + skipSec)) + 1 : '?';
+      const trimStartSec = parseFloat(trimStartInput.value) || 0;
+      const speedFactor = parseFloat(speedFactorInput.value) || 1;
+      const effectiveDur = Math.max(0, (inf?.duration || 0) - trimStartSec);
+      const segs = effectiveDur > 0 ? Math.floor(effectiveDur / (keepSec + skipSec)) + 1 : '?';
       html += `
         <div class="result-success">
           <div class="result-grid">
@@ -465,7 +481,7 @@ async function loadHistoryTab() {
     const outName = item.outputPath ? item.outputPath.split(/[/\\]/).pop() : '?';
     const size = item.outputSize ? formatSize(item.outputSize) : '';
     const meta = [
-      `Lấy ${item.keepSec}s / Bỏ ${item.skipSec}s`,
+      `Lấy ${item.keepSec}s / Bỏ ${item.skipSec}s` + (item.trimStartSec ? ` / Cắt ${item.trimStartSec}s` : '') + (item.speedFactor && item.speedFactor !== 1 ? ` / ${item.speedFactor}x` : ''),
       item.segments ? `${item.segments} đoạn` : '',
       size,
     ].filter(Boolean).join(' · ');
